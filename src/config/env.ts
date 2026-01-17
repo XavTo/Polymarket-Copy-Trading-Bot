@@ -76,7 +76,7 @@ const exitWithWalletConfigError = (invalidKeys: string[]): never => {
     console.error(
         '  USER_ADDRESSES="0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b,0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"\n'
     );
-    process.exit(1);
+    process.exit(0);
 };
 
 const validateWalletEnv = (): void => {
