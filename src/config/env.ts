@@ -9,6 +9,101 @@ const isValidEthereumAddress = (address: string): boolean => {
     return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
+const isPlaceholderValue = (value: string): boolean => {
+    const trimmed = value.trim();
+    return trimmed === '...' || trimmed.includes('...') || trimmed === '0x...';
+};
+
+const isValidPrivateKey = (value: string): boolean => {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('0x')) {
+        return false;
+    }
+    return /^[a-fA-F0-9]{64}$/.test(trimmed);
+};
+
+const isValidUserAddressesInput = (input: string): boolean => {
+    const trimmed = input.trim();
+    if (!trimmed || isPlaceholderValue(trimmed)) {
+        return false;
+    }
+
+    const normalize = (addr: string): string => addr.trim();
+    const validateList = (addresses: string[]): boolean => {
+        const cleaned = addresses.map(normalize).filter((addr) => addr.length > 0);
+        if (cleaned.length === 0) {
+            return false;
+        }
+        return cleaned.every(
+            (addr) => !isPlaceholderValue(addr) && isValidEthereumAddress(addr)
+        );
+    };
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (!Array.isArray(parsed)) {
+                return false;
+            }
+            if (!parsed.every((addr) => typeof addr === 'string')) {
+                return false;
+            }
+            return validateList(parsed as string[]);
+        } catch {
+            return false;
+        }
+    }
+
+    return validateList(trimmed.split(','));
+};
+
+const exitWithWalletConfigError = (invalidKeys: string[]): never => {
+    console.error('\nConfiguration Error: Missing or invalid wallet settings.\n');
+    console.error(`Please set these variables in your .env file: ${invalidKeys.join(', ')}\n`);
+    console.error('How to set them:');
+    console.error(
+        '  PRIVATE_KEY="64-character hex private key without 0x (Polymarket > Settings > Export Private Key)"'
+    );
+    console.error('  PROXY_WALLET="0x...": your wallet address that matches PRIVATE_KEY');
+    console.error(
+        '  USER_ADDRESSES="0x...,0x...": comma-separated trader addresses or a JSON array'
+    );
+    console.error('\nExample:');
+    console.error(
+        '  PRIVATE_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"'
+    );
+    console.error('  PROXY_WALLET="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"');
+    console.error(
+        '  USER_ADDRESSES="0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b,0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"\n'
+    );
+    process.exit(1);
+};
+
+const validateWalletEnv = (): void => {
+    const privateKey = process.env.PRIVATE_KEY || '';
+    const proxyWallet = process.env.PROXY_WALLET || '';
+    const userAddresses = process.env.USER_ADDRESSES || '';
+
+    const invalidKeys: string[] = [];
+    if (!privateKey || isPlaceholderValue(privateKey) || !isValidPrivateKey(privateKey)) {
+        invalidKeys.push('PRIVATE_KEY');
+    }
+    if (!proxyWallet || isPlaceholderValue(proxyWallet) || !isValidEthereumAddress(proxyWallet)) {
+        invalidKeys.push('PROXY_WALLET');
+    }
+    if (
+        !userAddresses ||
+        isPlaceholderValue(userAddresses) ||
+        !isValidUserAddressesInput(userAddresses)
+    ) {
+        invalidKeys.push('USER_ADDRESSES');
+    }
+
+    if (invalidKeys.length > 0) {
+        exitWithWalletConfigError(invalidKeys);
+    }
+};
+
 /**
  * Validate required environment variables
  */
@@ -170,6 +265,7 @@ const validateUrls = (): void => {
 };
 
 // Run all validations
+validateWalletEnv();
 validateRequiredEnv();
 validateAddresses();
 validateNumericConfig();
