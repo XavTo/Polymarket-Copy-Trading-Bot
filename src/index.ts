@@ -5,9 +5,23 @@ import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor';
 import Logger from './utils/logger';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck';
+import { spawn } from 'child_process';
 
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const PROXY_WALLET = ENV.PROXY_WALLET;
+
+const runAllowanceCheck = async (): Promise<void> => {
+    await new Promise<void>((resolve) => {
+        const child = spawn('npm run check-allowance', {
+            stdio: 'inherit',
+            env: process.env,
+            shell: true,
+        });
+
+        child.on('close', () => resolve());
+        child.on('error', () => resolve());
+    });
+};
 
 // Graceful shutdown handler
 let isShuttingDown = false;
@@ -73,7 +87,8 @@ export const main = async () => {
         console.log(`\n${colors.yellow}💡 First time running the bot?${colors.reset}`);
         console.log(`   Read the guide: ${colors.cyan}GETTING_STARTED.md${colors.reset}`);
         console.log(`   Run health check: ${colors.cyan}npm run health-check${colors.reset}\n`);
-        
+
+        await runAllowanceCheck();
         await connectDB();
         Logger.startup(USER_ADDRESSES, PROXY_WALLET);
 
